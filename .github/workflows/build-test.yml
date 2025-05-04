@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 permissions:
   contents: read
-  pull-requests: write  # Required to comment on PRs
+  pull-requests: write  # nécessaire pour commenter en cas de PR
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Required for diff with HEAD~1
+          fetch-depth: 2  # nécessaire pour pouvoir accéder au merge-base et HEAD~1
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -29,34 +29,70 @@ jobs:
       - name: Configure CMake
         run: cmake --preset=ninja-multi
 
-      - name: Build
-        run: cmake --build --preset=ninja-${{ matrix.build_type }}
+      # === ÉTAPE 1 : TEST SUR LA BRANCHE COURANTE ===
 
-      - name: Run Tests
-        run: ctest --preset=test-${{ matrix.build_type }}
+      - name: Build current commit
+        run: cmake --build --preset=ninja-${{ matrix.build_type }}
 
       - name: Copy data.json to execution directory
         run: cp test/data.json ./bin/${{ matrix.build_type }}/
         shell: bash
 
-      - name: Run test and save previous output
-        run: |
-          git checkout HEAD~1
-          cmake --build --preset=ninja-${{ matrix.build_type }}
-          cp test/data.json ./bin/${{ matrix.build_type }}/
-          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
+      - name: Run test on current commit
+        run: ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
         shell: bash
 
-      - name: Re-checkout latest commit
-        run: git checkout -
+      - name: Save current test output as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-data-output-current-${{ matrix.build_type }}
+          path: test-data-output-current-${{ matrix.build_type }}.txt
+
+      - name: Save data.json for reuse
+        run: cp test/data.json saved-data.json
         shell: bash
 
-      - name: Rebuild current commit
+      # === ÉTAPE 2 : TEST SUR LA BRANCHE CIBLE (merge-base pour PR) ===
+
+      - name: Checkout the base branch (for PRs) or previous commit (for push)
         run: |
-          cmake --build --preset=ninja-${{ matrix.build_type }}
-          cp test/data.json ./bin/${{ matrix.build_type }}/
-          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # PR: checkout base branch (merge-base)
+            git fetch origin
+            git checkout $(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }})
+          else
+            # push: checkout previous commit (HEAD~1)
+            git checkout HEAD~1
+          fi
         shell: bash
+
+      - name: Restore data.json
+        run: cp saved-data.json test/data.json
+        shell: bash
+
+      - name: Reconfigure if needed
+        run: cmake --preset=ninja-multi
+        shell: bash
+
+      - name: Build previous commit or base branch
+        run: cmake --build --preset=ninja-${{ matrix.build_type }}
+        shell: bash
+
+      - name: Copy data.json to execution directory (previous)
+        run: cp test/data.json ./bin/${{ matrix.build_type }}/
+        shell: bash
+
+      - name: Run test on previous commit or base branch
+        run: ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
+        shell: bash
+
+      - name: Save previous test output as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-data-output-prev-${{ matrix.build_type }}
+          path: test-data-output-prev-${{ matrix.build_type }}.txt
+
+      # === ÉTAPE 3 : COMPARAISON ===
 
       - name: Compare outputs
         id: compare
@@ -64,31 +100,32 @@ jobs:
           diff -u test-data-output-prev-${{ matrix.build_type }}.txt test-data-output-current-${{ matrix.build_type }}.txt > diff-${{ matrix.build_type }}.txt || true
         shell: bash
 
-      - name: Comment on PR with diff
+      - name: Upload diff
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-diff-${{ matrix.build_type }}
+          path: diff-${{ matrix.build_type }}.txt
+
+      # === ÉTAPE 4 : COMMENTAIRE EN CAS DE PR ===
+
+      - name: Comment diff on PR
         if: github.event_name == 'pull_request' && success()
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            🧪 Test output difference detected for **${{ matrix.build_type }}**:
+            🔍 Test output difference detected for **${{ matrix.build_type }}**:
+
             ```diff
             ${{ steps.compare.outputs.diff }}
             ```
 
-      - name: Fail if diff exists (push or PR)
+      # === ÉTAPE 5 : FAIL SI DIFF ===
+
+      - name: Fail if diff exists
         run: |
           if [ -s diff-${{ matrix.build_type }}.txt ]; then
-            echo "::error ::Output changed for ${{ matrix.build_type }}"
-            cat diff-${{ matrix.build_type }}.txt
+            echo "::error ::Test output differs for ${{ matrix.build_type }}"
             exit 1
           fi
         shell: bash
-
-      - name: Upload test outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-outputs-${{ matrix.build_type }}
-          path: |
-            test-data-output-prev-${{ matrix.build_type }}.txt
-            test-data-output-current-${{ matrix.build_type }}.txt
-            diff-${{ matrix.build_type }}.txt
