@@ -47,11 +47,12 @@ jobs:
 
       - name: Run test-data and save output
         run: |
-          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-${{ matrix.build_type }}.txt
+          cd ./bin/${{ matrix.build_type }}/
+          ./test.exe --test-data > test-data-output-${{ matrix.build_type }}.txt
         shell: bash
 
       - name: Upload test data output
         uses: actions/upload-artifact@v4
         with:
           name: test-data-output-${{ matrix.build_type }}
-          path: test-data-output-${{ matrix.build_type }}.txt
+          path: bin/${{ matrix.build_type }}/test-data-output-${{ matrix.build_type }}.txt
