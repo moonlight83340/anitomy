@@ -95,14 +95,19 @@ jobs:
         with:
           name: test-data-output-current-${{ matrix.build_type }}
 
-      - name: Compare outputs
+      - name: Compare test outputs and detect differences
         id: compare
         run: |
           diff -u ./bin/${{ matrix.build_type }}/test-data-output-prev-${{ matrix.build_type }}.txt test-data-output-current-${{ matrix.build_type }}.txt > diff-${{ matrix.build_type }}.txt || true
+          if [ -s diff-${{ matrix.build_type }}.txt ]; then
+            echo "non_empty=true" >> $GITHUB_OUTPUT
+                else
+            echo "non_empty=false" >> $GITHUB_OUTPUT
+          fi
         shell: bash
 
       - name: Upload diff
-        if: always() && steps.compare.outcome == 'success' && hashFiles('diff-${{ matrix.build_type }}.txt') != ''
+        if: steps.compare.outputs.non_empty == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: test-output-diff-${{ matrix.build_type }}
@@ -111,7 +116,7 @@ jobs:
       # === Step 4 : Comment if diff in case of PR ===
 
       - name: Comment diff on PR
-        if: github.event_name == 'pull_request' && success()
+        if: github.event_name == 'pull_request' && success() && steps.compare.outputs.non_empty == 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
