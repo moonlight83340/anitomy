@@ -2951,20 +2951,5 @@
             "source": "Web-DL",
             "file_extension": "mkv"
         }
-    },
-    {
-        "input": "NEET Kunoichi to Naze ka Dousei Hajimemashita E01-E02 [1080p][AAC][JapDub][GerSub][Web-DL].mkv",
-        "mal_id": 58082,
-        "output": {
-            "title": "NEET Kunoichi to Naze ka Dousei Hajimemashita",
-            "episode": [
-                "01",
-                "02"
-            ],
-            "video_resolution": "1080p",
-            "audio_term": "AAC",
-            "source": "Web-DL",
-            "file_extension": "mkv"
-        }
     }
 ]
