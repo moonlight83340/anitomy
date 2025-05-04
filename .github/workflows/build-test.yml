@@ -101,6 +101,9 @@ jobs:
           diff -u ./bin/${{ matrix.build_type }}/test-data-output-prev-${{ matrix.build_type }}.txt test-data-output-current-${{ matrix.build_type }}.txt > diff-${{ matrix.build_type }}.txt || true
           if [ -s diff-${{ matrix.build_type }}.txt ]; then
             echo "non_empty=true" >> $GITHUB_OUTPUT
+            echo "diff<<EOF" >> $GITHUB_OUTPUT
+            cat diff-${{ matrix.build_type }}.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
                 else
             echo "non_empty=false" >> $GITHUB_OUTPUT
           fi
@@ -116,7 +119,7 @@ jobs:
       # === Step 4 : Comment if diff in case of PR ===
 
       - name: Comment diff on PR
-        if: github.event_name == 'pull_request' && success() && steps.compare.outputs.non_empty == 'true'
+        if: github.event_name == 'pull_request' && steps.compare.compare.non_empty == 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
