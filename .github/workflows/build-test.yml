@@ -39,7 +39,9 @@ jobs:
         shell: bash
 
       - name: Run test on current commit
-        run: ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
+        run: |
+          cd ./bin/${{ matrix.build_type }}/
+          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
         shell: bash
 
       - name: Save current test output as artifact
@@ -47,10 +49,6 @@ jobs:
         with:
           name: test-data-output-current-${{ matrix.build_type }}
           path: test-data-output-current-${{ matrix.build_type }}.txt
-
-      - name: Save data.json for reuse
-        run: cp test/data.json saved-data.json
-        shell: bash
 
       # === ÉTAPE 2 : TEST SUR LA BRANCHE CIBLE (merge-base pour PR) ===
 
@@ -66,10 +64,6 @@ jobs:
           fi
         shell: bash
 
-      - name: Restore data.json
-        run: cp saved-data.json test/data.json
-        shell: bash
-
       - name: Reconfigure if needed
         run: cmake --preset=ninja-multi
         shell: bash
@@ -83,7 +77,9 @@ jobs:
         shell: bash
 
       - name: Run test on previous commit or base branch
-        run: ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
+        run: |
+          cd ./bin/${{ matrix.build_type }}/
+          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
         shell: bash
 
       - name: Save previous test output as artifact
