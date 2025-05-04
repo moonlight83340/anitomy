@@ -1,6 +1,7 @@
 name: Build and Test
 
-on: [push, pull_request]
+on:
+  pull_request:
 
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
       - name: Configure CMake
         run: cmake --preset=ninja-multi
 
-      # === Step 1 : Test on current branch ===
+      # === Step 1 : Test on current commit ===
 
       - name: Build current commit
         run: cmake --build --preset=ninja-${{ matrix.build_type }}
@@ -50,39 +51,33 @@ jobs:
           name: test-data-output-current-${{ matrix.build_type }}
           path: ./bin/${{ matrix.build_type }}/test-data-output-current-${{ matrix.build_type }}.txt
 
-      # === Step 2 : Test on previous commit or merge-base for PR ===
+      # === Step 2 : Test on base branch (merge-base) ===
 
-      - name: Checkout the base branch (for PRs) or previous commit (for push)
+      - name: Checkout merge-base with base branch
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # PR: checkout base branch (merge-base)
-            git fetch origin
-            git checkout $(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }})
-          else
-            # push: checkout previous commit (HEAD~1)
-            git checkout HEAD~1
-          fi
+          git fetch origin
+          git checkout $(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }})
         shell: bash
 
-      - name: Configure CMake
+      - name: Configure CMake (base)
         run: cmake --preset=ninja-multi
         shell: bash
 
-      - name: Build previous commit or base branch
+      - name: Build base branch (merge-base)
         run: cmake --build --preset=ninja-${{ matrix.build_type }}
         shell: bash
 
-      - name: Copy data.json to execution directory (previous)
+      - name: Copy data.json to execution directory (base)
         run: cp test/data.json ./bin/${{ matrix.build_type }}/
         shell: bash
 
-      - name: Run test on previous commit or base branch
+      - name: Run test on base branch (merge-base)
         run: |
           cd ./bin/${{ matrix.build_type }}/
           ./test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
         shell: bash
 
-      - name: Save previous test output as artifact
+      - name: Save base test output as artifact
         uses: actions/upload-artifact@v4
         with:
           name: test-data-output-prev-${{ matrix.build_type }}
@@ -104,7 +99,7 @@ jobs:
             echo "diff<<EOF" >> $GITHUB_OUTPUT
             cat diff-${{ matrix.build_type }}.txt >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
-                else
+          else
             echo "non_empty=false" >> $GITHUB_OUTPUT
           fi
         shell: bash
@@ -119,7 +114,7 @@ jobs:
       # === Step 4 : Comment if diff in case of PR ===
 
       - name: Comment diff on PR
-        if: github.event_name == 'pull_request' && steps.compare.compare.non_empty == 'true'
+        if: steps.compare.outputs.non_empty == 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
