@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 permissions:
   contents: read
+  pull-requests: write  # Required to comment on PRs
 
 jobs:
   build:
@@ -16,6 +17,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Required for diff with HEAD~1
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -33,26 +36,59 @@ jobs:
         run: ctest --preset=test-${{ matrix.build_type }}
 
       - name: Copy data.json to execution directory
+        run: cp test/data.json ./bin/${{ matrix.build_type }}/
+        shell: bash
+
+      - name: Run test and save previous output
         run: |
+          git checkout HEAD~1
+          cmake --build --preset=ninja-${{ matrix.build_type }}
           cp test/data.json ./bin/${{ matrix.build_type }}/
+          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
         shell: bash
 
-      - name: Debug — list bin directory
-        run: ls -R ./bin/
+      - name: Re-checkout latest commit
+        run: git checkout -
         shell: bash
 
-      - name: Debug — list full working directory
-        run: ls -R
-        shell: bash
-
-      - name: Run test-data and save output
+      - name: Rebuild current commit
         run: |
-          cd ./bin/${{ matrix.build_type }}/
-          ./test.exe --test-data > test-data-output-${{ matrix.build_type }}.txt
+          cmake --build --preset=ninja-${{ matrix.build_type }}
+          cp test/data.json ./bin/${{ matrix.build_type }}/
+          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
         shell: bash
 
-      - name: Upload test data output
+      - name: Compare outputs
+        id: compare
+        run: |
+          diff -u test-data-output-prev-${{ matrix.build_type }}.txt test-data-output-current-${{ matrix.build_type }}.txt > diff-${{ matrix.build_type }}.txt || true
+        shell: bash
+
+      - name: Comment on PR with diff
+        if: github.event_name == 'pull_request' && success()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            🧪 Test output difference detected for **${{ matrix.build_type }}**:
+            ```diff
+            ${{ steps.compare.outputs.diff }}
+            ```
+
+      - name: Fail if diff exists (push or PR)
+        run: |
+          if [ -s diff-${{ matrix.build_type }}.txt ]; then
+            echo "::error ::Output changed for ${{ matrix.build_type }}"
+            cat diff-${{ matrix.build_type }}.txt
+            exit 1
+          fi
+        shell: bash
+
+      - name: Upload test outputs
         uses: actions/upload-artifact@v4
         with:
-          name: test-data-output-${{ matrix.build_type }}
-          path: bin/${{ matrix.build_type }}/test-data-output-${{ matrix.build_type }}.txt
+          name: test-outputs-${{ matrix.build_type }}
+          path: |
+            test-data-output-prev-${{ matrix.build_type }}.txt
+            test-data-output-current-${{ matrix.build_type }}.txt
+            diff-${{ matrix.build_type }}.txt
