@@ -41,14 +41,14 @@ jobs:
       - name: Run test on current commit
         run: |
           cd ./bin/${{ matrix.build_type }}/
-          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
+          ./test.exe --test-data > test-data-output-current-${{ matrix.build_type }}.txt
         shell: bash
 
       - name: Save current test output as artifact
         uses: actions/upload-artifact@v4
         with:
           name: test-data-output-current-${{ matrix.build_type }}
-          path: test-data-output-current-${{ matrix.build_type }}.txt
+          path: ./bin/${{ matrix.build_type }}/test-data-output-current-${{ matrix.build_type }}.txt
 
       # === ÉTAPE 2 : TEST SUR LA BRANCHE CIBLE (merge-base pour PR) ===
 
@@ -79,14 +79,14 @@ jobs:
       - name: Run test on previous commit or base branch
         run: |
           cd ./bin/${{ matrix.build_type }}/
-          ./bin/${{ matrix.build_type }}/test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
+          ./test.exe --test-data > test-data-output-prev-${{ matrix.build_type }}.txt
         shell: bash
 
       - name: Save previous test output as artifact
         uses: actions/upload-artifact@v4
         with:
           name: test-data-output-prev-${{ matrix.build_type }}
-          path: test-data-output-prev-${{ matrix.build_type }}.txt
+          path: ./bin/${{ matrix.build_type }}/test-data-output-prev-${{ matrix.build_type }}.txt
 
       # === ÉTAPE 3 : COMPARAISON ===
 
