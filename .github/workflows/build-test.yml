@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: windows-latest
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         build_type: [debug, release]
 
@@ -31,6 +31,14 @@ jobs:
 
       - name: Run Tests
         run: ctest --preset=test-${{ matrix.build_type }}
+
+      - name: Debug — list bin directory
+        run: ls -R ./bin/
+        shell: bash
+
+      - name: Debug — list full working directory
+        run: ls -R
+        shell: bash
 
       - name: Copy data.json to execution directory
         run: |
