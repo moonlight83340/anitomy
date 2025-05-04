@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 permissions:
   contents: read
-  pull-requests: write  # nécessaire pour commenter en cas de PR
+  pull-requests: write
 
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # nécessaire pour pouvoir accéder au merge-base et HEAD~1
+          fetch-depth: 2
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -29,7 +29,7 @@ jobs:
       - name: Configure CMake
         run: cmake --preset=ninja-multi
 
-      # === ÉTAPE 1 : TEST SUR LA BRANCHE COURANTE ===
+      # === Step 1 : Test on current branch ===
 
       - name: Build current commit
         run: cmake --build --preset=ninja-${{ matrix.build_type }}
@@ -50,7 +50,7 @@ jobs:
           name: test-data-output-current-${{ matrix.build_type }}
           path: ./bin/${{ matrix.build_type }}/test-data-output-current-${{ matrix.build_type }}.txt
 
-      # === ÉTAPE 2 : TEST SUR LA BRANCHE CIBLE (merge-base pour PR) ===
+      # === Step 2 : Test on previous commit or merge-base for PR ===
 
       - name: Checkout the base branch (for PRs) or previous commit (for push)
         run: |
@@ -64,7 +64,7 @@ jobs:
           fi
         shell: bash
 
-      - name: Reconfigure if needed
+      - name: Configure CMake
         run: cmake --preset=ninja-multi
         shell: bash
 
@@ -88,7 +88,12 @@ jobs:
           name: test-data-output-prev-${{ matrix.build_type }}
           path: ./bin/${{ matrix.build_type }}/test-data-output-prev-${{ matrix.build_type }}.txt
 
-      # === ÉTAPE 3 : COMPARAISON ===
+      # === Step 3 : Compare ===
+
+      - name: Download current test output
+        uses: actions/download-artifact@v4
+        with:
+          name: test-data-output-current-${{ matrix.build_type }}
 
       - name: Compare outputs
         id: compare
@@ -102,7 +107,7 @@ jobs:
           name: test-output-diff-${{ matrix.build_type }}
           path: diff-${{ matrix.build_type }}.txt
 
-      # === ÉTAPE 4 : COMMENTAIRE EN CAS DE PR ===
+      # === Step 4 : Comment if diff in case of PR ===
 
       - name: Comment diff on PR
         if: github.event_name == 'pull_request' && success()
@@ -116,7 +121,7 @@ jobs:
             ${{ steps.compare.outputs.diff }}
             ```
 
-      # === ÉTAPE 5 : FAIL SI DIFF ===
+      # === Step 5 : Fail if diff ===
 
       - name: Fail if diff exists
         run: |
