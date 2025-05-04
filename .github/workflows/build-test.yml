@@ -32,17 +32,17 @@ jobs:
       - name: Run Tests
         run: ctest --preset=test-${{ matrix.build_type }}
 
+      - name: Copy data.json to execution directory
+        run: |
+          cp test/data.json ./bin/${{ matrix.build_type }}/
+        shell: bash
+
       - name: Debug — list bin directory
         run: ls -R ./bin/
         shell: bash
 
       - name: Debug — list full working directory
         run: ls -R
-        shell: bash
-
-      - name: Copy data.json to execution directory
-        run: |
-          cp test/data.json ./bin/${{ matrix.build_type }}/
         shell: bash
 
       - name: Run test-data and save output
